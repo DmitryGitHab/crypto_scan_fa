@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypto Analyzer</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚀 Crypto Analyzer</h1>
+            <p>Поиск криптовалют по заданным параметрам</p>
+        </header>
+
+        <div class="filters-card">
+            <h2>⚙️ Параметры фильтрации</h2>
+            
+            <div class="filters-grid">
+                <div class="filter-group">
+                    <label for="minAthMarketCap">Минимальная ATH капитализация ($):</label>
+                    <input type="number" id="minAthMarketCap" value="500000" min="0" step="1000">
+                </div>
+
+                <div class="filter-group">
+                    <label for="minCurrentMarketCap">Минимальная текущая капитализация ($):</label>
+                    <input type="number" id="minCurrentMarketCap" value="20000" min="0" step="1000">
+                </div>
+
+                <div class="filter-group">
+                    <label for="minDrawdown">Минимальная просадка (%):</label>
+                    <input type="number" id="minDrawdown" value="-90" min="-100" max="0" step="1">
+                </div>
+
+                <div class="filter-group">
+                    <label for="maxDrawdown">Максимальная просадка (%):</label>
+                    <input type="number" id="maxDrawdown" value="-50" min="-100" max="0" step="1">
+                </div>
+
+                <div class="filter-group">
+                    <label for="maxResults">Максимум результатов:</label>
+                    <input type="number" id="maxResults" value="50" min="1" max="200" step="1">
+                </div>
+            </div>
+
+            <div class="actions">
+                <button id="analyzeBtn" class="btn-primary">🔍 Анализировать</button>
+                <button id="resetBtn" class="btn-secondary">🔄 Сбросить</button>
+            </div>
+        </div>
+
+        <div id="loading" class="loading hidden">
+            <div class="spinner"></div>
+            <p>Анализируем криптовалюты...</p>
+        </div>
+
+        <div id="results" class="results-card hidden">
+            <h2>📊 Результаты анализа</h2>
+            <div id="resultsCount" class="results-count"></div>
+            <div id="resultsTable" class="table-container"></div>
+        </div>
+
+        <div id="error" class="error-card hidden">
+            <h2>❌ Ошибка</h2>
+            <p id="errorMessage"></p>
+        </div>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>

@@ -1,0 +1,422 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --secondary-color: #f8f9fa;
+    --text-primary: #333;
+    --text-secondary: #555;
+    --success-color: #10b981;
+    --error-color: #ef4444;
+    --warning-color: #f59e0b;
+    --border-color: #e1e5e9;
+    --shadow: 0 10px 30px rgba(0,0,0,0.2);
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: var(--primary-gradient);
+    min-height: 100vh;
+    padding: 20px;
+    line-height: 1.6;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+header {
+    text-align: center;
+    margin-bottom: 40px;
+    color: white;
+}
+
+header h1 {
+    font-size: 2.8rem;
+    margin-bottom: 15px;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    font-weight: 700;
+}
+
+header p {
+    font-size: 1.2rem;
+    opacity: 0.9;
+    font-weight: 300;
+}
+
+.filters-card, .results-card, .error-card {
+    background: white;
+    border-radius: 20px;
+    padding: 35px;
+    margin-bottom: 25px;
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+.filters-card h2, .results-card h2, .error-card h2 {
+    margin-bottom: 25px;
+    color: var(--text-primary);
+    font-size: 1.6rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.filters-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 25px;
+    margin-bottom: 30px;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.filter-group label {
+    margin-bottom: 10px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+}
+
+.filter-group input {
+    padding: 14px;
+    border: 2px solid var(--border-color);
+    border-radius: 10px;
+    font-size: 16px;
+    transition: all 0.3s ease;
+    background: var(--secondary-color);
+}
+
+.filter-group input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    background: white;
+}
+
+.filter-group input:invalid {
+    border-color: var(--error-color);
+}
+
+.actions {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.btn-primary, .btn-secondary {
+    padding: 14px 35px;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-width: 160px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.btn-primary {
+    background: var(--primary-gradient);
+    color: white;
+}
+
+.btn-primary:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+}
+
+.btn-primary:active {
+    transform: translateY(-1px);
+}
+
+.btn-secondary {
+    background: var(--secondary-color);
+    color: var(--text-primary);
+    border: 2px solid var(--border-color);
+}
+
+.btn-secondary:hover {
+    background: #e9ecef;
+    transform: translateY(-2px);
+}
+
+.loading {
+    text-align: center;
+    padding: 50px;
+    background: white;
+    border-radius: 20px;
+    box-shadow: var(--shadow);
+}
+
+.spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #667eea;
+    border-radius: 50%;
+    width: 60px;
+    height: 60px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 25px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.loading p {
+    font-size: 1.1rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.results-count {
+    background: var(--secondary-color);
+    padding: 18px;
+    border-radius: 10px;
+    margin-bottom: 25px;
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 1.1rem;
+    border-left: 4px solid #667eea;
+}
+
+.table-container {
+    overflow-x: auto;
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+}
+
+.crypto-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0;
+    font-size: 0.95rem;
+}
+
+.crypto-table th,
+.crypto-table td {
+    padding: 15px 18px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.crypto-table th {
+    background: var(--secondary-color);
+    font-weight: 700;
+    color: var(--text-primary);
+    position: sticky;
+    top: 0;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.crypto-table tr:hover {
+    background: #f8f9fa;
+    transform: scale(1.01);
+    transition: all 0.2s ease;
+}
+
+.crypto-table tr:last-child td {
+    border-bottom: none;
+}
+
+.crypto-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    margin-right: 12px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.crypto-name {
+    display: flex;
+    align-items: center;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.positive {
+    color: var(--success-color);
+    font-weight: 700;
+}
+
+.negative {
+    color: var(--error-color);
+    font-weight: 700;
+}
+
+.neutral {
+    color: #6b7280;
+    font-weight: 500;
+}
+
+.price-up {
+    color: var(--success-color);
+    font-weight: 700;
+}
+
+.price-down {
+    color: var(--error-color);
+    font-weight: 700;
+}
+
+.hidden {
+    display: none !important;
+}
+
+.error-card {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: var(--error-color);
+}
+
+.error-card h2 {
+    color: var(--error-color);
+}
+
+.no-results {
+    text-align: center;
+    padding: 40px;
+    color: var(--text-secondary);
+    font-size: 1.1rem;
+    background: var(--secondary-color);
+    border-radius: 10px;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .container {
+        padding: 10px;
+    }
+
+    header h1 {
+        font-size: 2.2rem;
+    }
+
+    .filters-card, .results-card, .error-card {
+        padding: 25px;
+        border-radius: 15px;
+    }
+
+    .filters-grid {
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+
+    .actions {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .btn-primary, .btn-secondary {
+        width: 100%;
+        max-width: 300px;
+    }
+
+    .crypto-table {
+        font-size: 0.85rem;
+    }
+
+    .crypto-table th,
+    .crypto-table td {
+        padding: 12px 10px;
+    }
+
+    .crypto-icon {
+        width: 24px;
+        height: 24px;
+        margin-right: 8px;
+    }
+}
+
+@media (max-width: 480px) {
+    body {
+        padding: 10px;
+    }
+
+    header h1 {
+        font-size: 1.8rem;
+    }
+
+    header p {
+        font-size: 1rem;
+    }
+
+    .filters-card, .results-card, .error-card {
+        padding: 20px;
+    }
+
+    .crypto-table {
+        font-size: 0.8rem;
+    }
+
+    .crypto-table th,
+    .crypto-table td {
+        padding: 10px 8px;
+    }
+}
+
+/* Анимации */
+.fade-in {
+    animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.slide-in {
+    animation: slideIn 0.4s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Кастомный скроллбар */
+.table-container::-webkit-scrollbar {
+    height: 8px;
+}
+
+.table-container::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.table-container::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+}
+
+.table-container::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
