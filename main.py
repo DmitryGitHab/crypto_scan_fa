@@ -8,19 +8,19 @@ import json
 from datetime import datetime
 import os
 import time
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel
 
 
 class FilterParams(BaseModel):
     min_ath_market_cap: float = 500000
-    max_drawdown: float = 50  # Теперь положительные числа
-    min_drawdown: float = 90  # Теперь положительные числа
+    max_drawdown: float = 50
+    min_drawdown: float = 90
     min_current_market_cap: float = 20000
     max_results: int = 100
 
 
-app = FastAPI(title="Crypto Analyzer", version="2.0.0")
+app = FastAPI(title="Crypto Analyzer", version="3.0.0")
 
 # Монтируем статические файлы
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -66,11 +66,32 @@ class CryptoAnalyzer:
             return 0
         return ((current_price - ath_price) / ath_price) * 100
 
-    async def get_top_cryptos(self, session, per_page=200):
-        """Получение топ криптовалют с основными данными"""
-        url = f"{self.base_url}/coins/markets?vs_currency=usd&order=market_cap_desc&per_page={per_page}&page=1&sparkline=false"
-        data = await self.fetch_data(session, url)
-        return data if data else []
+    async def get_all_cryptos(self, session):
+        """Получение всех криптовалют несколькими запросами"""
+        all_cryptos = []
+
+        # Получаем данные с нескольких страниц
+        for page in range(1, 6):  # 5 страниц по 250 = 1250 криптовалют
+            url = f"{self.base_url}/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page={page}&sparkline=false"
+            print(f"Получаем страницу {page}...")
+
+            data = await self.fetch_data(session, url)
+            if data:
+                all_cryptos.extend(data)
+
+            # Задержка между запросами
+            await asyncio.sleep(1)
+
+        # Убираем дубликаты по id
+        seen_ids = set()
+        unique_cryptos = []
+        for crypto in all_cryptos:
+            if crypto.get('id') and crypto['id'] not in seen_ids:
+                seen_ids.add(crypto['id'])
+                unique_cryptos.append(crypto)
+
+        print(f"Получено {len(unique_cryptos)} уникальных криптовалют")
+        return unique_cryptos
 
     def filter_cryptocurrencies(self, crypto_data, filter_params: FilterParams):
         """Фильтрация криптовалют по заданным условиям"""
@@ -85,6 +106,10 @@ class CryptoAnalyzer:
                 current_market_cap = crypto.get('market_cap', 0)
                 ath_price = crypto.get('ath', 0)
 
+                # Пропускаем криптовалюты с нулевой ценой или капитализацией
+                if current_price == 0 or current_market_cap == 0 or ath_price == 0:
+                    continue
+
                 # Получаем процент изменения от ATH
                 ath_change_percentage = crypto.get('ath_change_percentage')
                 if ath_change_percentage is not None:
@@ -93,39 +118,33 @@ class CryptoAnalyzer:
                     drawdown_percentage = self.calculate_drawdown(current_price, ath_price)
 
                 # Оцениваем ATH капитализацию
-                if ath_price > 0 and current_price > 0:
-                    estimated_ath_market_cap = (ath_price / current_price) * current_market_cap
-                else:
-                    estimated_ath_market_cap = 0
-
-                # Рассчитываем отклонение цены
-                price_deviation = ath_price - current_price if ath_price > 0 and current_price > 0 else 0
-                price_deviation_percentage = (price_deviation / ath_price) * 100 if ath_price > 0 else 0
+                estimated_ath_market_cap = (ath_price / current_price) * current_market_cap
 
                 # Преобразуем просадку в положительное число для сравнения
                 drawdown_positive = abs(drawdown_percentage)
 
-                # Проверяем условия (теперь с положительными значениями просадки)
+                # Проверяем условия
                 conditions_met = (
                         estimated_ath_market_cap >= filter_params.min_ath_market_cap and
                         current_market_cap >= filter_params.min_current_market_cap and
-                        ath_price > 0 and current_price > 0 and
                         filter_params.min_drawdown <= drawdown_positive <= filter_params.max_drawdown
                 )
 
                 if conditions_met:
+                    # Расчет отклонения цены от ATH
+                    price_deviation = ((current_price - ath_price) / ath_price) * 100
+
                     crypto_info = {
                         'name': crypto.get('name', 'N/A'),
                         'symbol': crypto.get('symbol', 'N/A').upper(),
                         'current_price': current_price,
                         'ath_price': ath_price,
+                        'price_deviation': round(price_deviation, 2),
                         'current_market_cap': current_market_cap,
                         'ath_date': crypto.get('ath_date', 'N/A'),
                         'estimated_ath_market_cap': estimated_ath_market_cap,
                         'drawdown_percent': round(drawdown_percentage, 2),
                         'drawdown_positive': round(drawdown_positive, 2),
-                        'price_deviation': round(price_deviation, 6),
-                        'price_deviation_percentage': round(price_deviation_percentage, 2),
                         'rank': crypto.get('market_cap_rank', 'N/A'),
                         'id': crypto.get('id', ''),
                         'price_change_24h': crypto.get('price_change_24h', 0),
@@ -137,22 +156,26 @@ class CryptoAnalyzer:
             except (KeyError, TypeError, ZeroDivisionError, AttributeError) as e:
                 continue
 
+        # Сортируем по просадке (от большей к меньшей)
+        filtered.sort(key=lambda x: x['drawdown_positive'], reverse=True)
+
         return filtered[:filter_params.max_results]
 
     async def analyze_cryptocurrencies(self, filter_params: FilterParams):
         """Основная функция анализа криптовалют"""
         async with aiohttp.ClientSession() as session:
-            print("Получаем список топ криптовалют...")
-            cryptocurrencies = await self.get_top_cryptos(session, 300)
+            print("Получаем расширенный список криптовалют...")
+            cryptocurrencies = await self.get_all_cryptos(session)
 
             if not cryptocurrencies:
                 return []
 
-            print(f"Получено {len(cryptocurrencies)} криптовалют")
+            print(f"Получено {len(cryptocurrencies)} криптовалют для анализа")
 
             # Фильтруем по условиям
             filtered_cryptos = self.filter_cryptocurrencies(cryptocurrencies, filter_params)
 
+            print(f"Найдено {len(filtered_cryptos)} криптовалют, соответствующих критериям")
             return filtered_cryptos
 
 
@@ -169,12 +192,15 @@ async def read_root(request: Request):
 async def analyze_cryptos(params: FilterParams):
     """API endpoint для анализа криптовалют"""
     try:
+        start_time = time.time()
         results = await analyzer.analyze_cryptocurrencies(params)
+        processing_time = time.time() - start_time
 
         return {
             "success": True,
             "data": results,
             "count": len(results),
+            "processing_time": round(processing_time, 2),
             "timestamp": datetime.now().isoformat()
         }
     except Exception as e:
@@ -187,7 +213,7 @@ async def get_status():
     return {
         "status": "online",
         "timestamp": datetime.now().isoformat(),
-        "service": "Crypto Analyzer v2.0"
+        "service": "Crypto Analyzer Pro v3.0"
     }
 
 

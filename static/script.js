@@ -24,14 +24,23 @@ class CryptoAnalyzer {
             const input = document.getElementById(id);
             input.addEventListener('blur', (e) => this.formatNumberInput(e.target));
             input.addEventListener('focus', (e) => this.unformatNumberInput(e.target));
+            input.addEventListener('input', (e) => this.handleNumberInput(e.target));
             this.formatNumberInput(input);
         });
     }
 
+    handleNumberInput(input) {
+        // Сохраняем числовое значение в data-атрибут
+        const numericValue = input.value.replace(/,/g, '');
+        if (!isNaN(numericValue) && numericValue !== '') {
+            input.setAttribute('data-value', numericValue);
+        }
+    }
+
     formatNumberInput(input) {
-        const value = parseInt(input.getAttribute('data-value') || input.value.replace(/,/g, ''));
-        if (!isNaN(value)) {
-            input.value = this.formatCurrency(value);
+        const value = input.getAttribute('data-value') || input.value.replace(/,/g, '');
+        if (value && !isNaN(value)) {
+            input.value = this.formatCurrency(parseFloat(value));
             input.setAttribute('data-value', value);
         }
     }
@@ -82,12 +91,19 @@ class CryptoAnalyzer {
     }
 
     getFilterParams() {
+        // Получаем значения из форматированных полей
+        const minAthMarketCap = document.getElementById('minAthMarketCap').getAttribute('data-value') ||
+                               document.getElementById('minAthMarketCap').value.replace(/,/g, '');
+
+        const minCurrentMarketCap = document.getElementById('minCurrentMarketCap').getAttribute('data-value') ||
+                                   document.getElementById('minCurrentMarketCap').value.replace(/,/g, '');
+
         return {
-            min_ath_market_cap: parseInt(document.getElementById('minAthMarketCap').getAttribute('data-value') || document.getElementById('minAthMarketCap').value.replace(/,/g, '')),
-            min_current_market_cap: parseInt(document.getElementById('minCurrentMarketCap').getAttribute('data-value') || document.getElementById('minCurrentMarketCap').value.replace(/,/g, '')),
-            min_drawdown: parseFloat(document.getElementById('minDrawdown').value),
-            max_drawdown: parseFloat(document.getElementById('maxDrawdown').value),
-            max_results: parseInt(document.getElementById('maxResults').value)
+            min_ath_market_cap: parseFloat(minAthMarketCap) || 500000,
+            min_current_market_cap: parseFloat(minCurrentMarketCap) || 20000,
+            min_drawdown: parseFloat(document.getElementById('minDrawdown').value) || 50,
+            max_drawdown: parseFloat(document.getElementById('maxDrawdown').value) || 90,
+            max_results: parseInt(document.getElementById('maxResults').value) || 50
         };
     }
 
@@ -138,6 +154,8 @@ class CryptoAnalyzer {
             const params = this.getFilterParams();
             this.validateFilters(params);
 
+            console.log('Параметры фильтрации:', params);
+
             const response = await fetch('/api/analyze', {
                 method: 'POST',
                 headers: {
@@ -169,6 +187,7 @@ class CryptoAnalyzer {
         this.resultsCountElement.innerHTML = `
             <span class="card-icon">🎯</span>
             Найдено криптовалют: <span class="gradient-text">${data.count}</span>
+            ${data.processing_time ? `<span style="margin-left: 15px; color: var(--text-muted); font-size: 0.9em;">(время обработки: ${data.processing_time}с)</span>` : ''}
         `;
 
         this.generateTable(data.data);
@@ -201,7 +220,7 @@ class CryptoAnalyzer {
                         <th data-sort="name">Криптовалюта</th>
                         <th data-sort="ath_price" class="number-cell">Макс. цена ($)</th>
                         <th data-sort="current_price" class="number-cell">Цена ($)</th>
-                        <th data-sort="price_deviation" class="number-cell">Отклонение от макс.</th>
+                        <th data-sort="price_deviation" class="number-cell">Отклонение</th>
                         <th data-sort="current_market_cap" class="number-cell">Текущая кап. ($)</th>
                         <th data-sort="estimated_ath_market_cap" class="number-cell">ATH кап. ($)</th>
                         <th data-sort="drawdown_positive" class="number-cell">Просадка</th>
@@ -245,21 +264,11 @@ class CryptoAnalyzer {
             return `${change > 0 ? '+' : ''}${change.toFixed(2)}%`;
         };
 
-        // Рассчитываем отклонение текущей цены от максимальной
-        const calculatePriceDeviation = (current, ath) => {
-            if (!ath || !current) return { value: 0, percentage: 0 };
-            const deviation = ath - current;
-            const percentage = (deviation / ath) * 100;
-            return { value: deviation, percentage: percentage };
-        };
-
-        const deviation = calculatePriceDeviation(crypto.current_price, crypto.ath_price);
-
         // Генерируем ссылку на CoinMarketCap
         const cmcUrl = `https://coinmarketcap.com/currencies/${crypto.id}/`;
 
         return `
-            <tr class="table-row" style="opacity: 0; transform: translateX(-20px);">
+            <tr class="table-row">
                 <td class="number-cell">${index}</td>
                 <td>
                     <a href="${cmcUrl}" target="_blank" class="crypto-link" title="Открыть на CoinMarketCap">
@@ -269,9 +278,7 @@ class CryptoAnalyzer {
                 </td>
                 <td class="number-cell"><strong>${formatPrice(crypto.ath_price)}</strong></td>
                 <td class="number-cell"><strong>${formatPrice(crypto.current_price)}</strong></td>
-                <td class="negative number-cell">
-                    <strong>${formatPrice(deviation.value)} (${deviation.percentage.toFixed(2)}%)</strong>
-                </td>
+                <td class="negative number-cell"><strong>${crypto.price_deviation}%</strong></td>
                 <td class="number-cell">${formatCurrency(crypto.current_market_cap)}</td>
                 <td class="number-cell"><strong>${formatCurrency(crypto.estimated_ath_market_cap)}</strong></td>
                 <td class="negative number-cell"><strong>${crypto.drawdown_percent}%</strong></td>
@@ -313,12 +320,6 @@ class CryptoAnalyzer {
             let aValue = a[sortKey];
             let bValue = b[sortKey];
 
-            // Для специального поля отклонения цены
-            if (sortKey === 'price_deviation') {
-                aValue = (a.ath_price - a.current_price) / a.ath_price * 100;
-                bValue = (b.ath_price - b.current_price) / b.ath_price * 100;
-            }
-
             // Для строк - обычное сравнение
             if (typeof aValue === 'string') {
                 aValue = aValue.toLowerCase();
@@ -327,11 +328,7 @@ class CryptoAnalyzer {
             }
 
             // Для чисел - числовое сравнение
-            if (sortDirection === 'asc') {
-                return (aValue || 0) - (bValue || 0);
-            } else {
-                return (bValue || 0) - (aValue || 0);
-            }
+            return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
         });
 
         // Обновляем состояние сортировки
@@ -339,17 +336,8 @@ class CryptoAnalyzer {
         header.classList.add(`sort-${sortDirection}`);
 
         // Перерисовываем таблицу с отсортированными данными
-        this.regenerateTable(sortedData);
-    }
-
-    regenerateTable(sortedData) {
-        const tbody = this.resultsTableElement.querySelector('tbody');
-        if (!tbody) return;
-
-        tbody.innerHTML = sortedData.map((crypto, index) => this.generateTableRow(crypto, index + 1)).join('');
-
-        // Анимируем новые строки
-        this.animateTableRows();
+        this.resultsTableElement.querySelector('tbody').innerHTML =
+            sortedData.map((crypto, index) => this.generateTableRow(crypto, index + 1)).join('');
     }
 
     async animateTableRows() {
