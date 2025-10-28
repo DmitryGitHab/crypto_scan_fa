@@ -14,13 +14,13 @@ from pydantic import BaseModel
 
 class FilterParams(BaseModel):
     min_ath_market_cap: float = 500000
-    max_drawdown: float = -50
-    min_drawdown: float = -90
+    max_drawdown: float = 50  # Теперь положительные числа
+    min_drawdown: float = 90  # Теперь положительные числа
     min_current_market_cap: float = 20000
     max_results: int = 100
 
 
-app = FastAPI(title="Crypto Analyzer", version="1.0.0")
+app = FastAPI(title="Crypto Analyzer", version="2.0.0")
 
 # Монтируем статические файлы
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -98,12 +98,19 @@ class CryptoAnalyzer:
                 else:
                     estimated_ath_market_cap = 0
 
-                # Проверяем условия
+                # Рассчитываем отклонение цены
+                price_deviation = ath_price - current_price if ath_price > 0 and current_price > 0 else 0
+                price_deviation_percentage = (price_deviation / ath_price) * 100 if ath_price > 0 else 0
+
+                # Преобразуем просадку в положительное число для сравнения
+                drawdown_positive = abs(drawdown_percentage)
+
+                # Проверяем условия (теперь с положительными значениями просадки)
                 conditions_met = (
                         estimated_ath_market_cap >= filter_params.min_ath_market_cap and
                         current_market_cap >= filter_params.min_current_market_cap and
                         ath_price > 0 and current_price > 0 and
-                        filter_params.min_drawdown <= drawdown_percentage <= filter_params.max_drawdown
+                        filter_params.min_drawdown <= drawdown_positive <= filter_params.max_drawdown
                 )
 
                 if conditions_met:
@@ -111,11 +118,14 @@ class CryptoAnalyzer:
                         'name': crypto.get('name', 'N/A'),
                         'symbol': crypto.get('symbol', 'N/A').upper(),
                         'current_price': current_price,
-                        'current_market_cap': current_market_cap,
                         'ath_price': ath_price,
+                        'current_market_cap': current_market_cap,
                         'ath_date': crypto.get('ath_date', 'N/A'),
                         'estimated_ath_market_cap': estimated_ath_market_cap,
                         'drawdown_percent': round(drawdown_percentage, 2),
+                        'drawdown_positive': round(drawdown_positive, 2),
+                        'price_deviation': round(price_deviation, 6),
+                        'price_deviation_percentage': round(price_deviation_percentage, 2),
                         'rank': crypto.get('market_cap_rank', 'N/A'),
                         'id': crypto.get('id', ''),
                         'price_change_24h': crypto.get('price_change_24h', 0),
@@ -177,10 +187,11 @@ async def get_status():
     return {
         "status": "online",
         "timestamp": datetime.now().isoformat(),
-        "service": "Crypto Analyzer"
+        "service": "Crypto Analyzer v2.0"
     }
 
 
 if __name__ == "__main__":
     import uvicorn
 
+    uvicorn.run(app, host="0.0.0.0", port=8000)

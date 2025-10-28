@@ -9,8 +9,42 @@ class CryptoAnalyzer {
         this.resultsTableElement = document.getElementById('resultsTable');
 
         this.isAnalyzing = false;
+        this.currentData = [];
+        this.sortState = {};
+
         this.bindEvents();
+        this.initializeNumberInputs();
         this.checkServerStatus();
+    }
+
+    initializeNumberInputs() {
+        // Форматирование числовых полей с разделителями
+        const numberInputs = ['minAthMarketCap', 'minCurrentMarketCap'];
+        numberInputs.forEach(id => {
+            const input = document.getElementById(id);
+            input.addEventListener('blur', (e) => this.formatNumberInput(e.target));
+            input.addEventListener('focus', (e) => this.unformatNumberInput(e.target));
+            this.formatNumberInput(input);
+        });
+    }
+
+    formatNumberInput(input) {
+        const value = parseInt(input.getAttribute('data-value') || input.value.replace(/,/g, ''));
+        if (!isNaN(value)) {
+            input.value = this.formatCurrency(value);
+            input.setAttribute('data-value', value);
+        }
+    }
+
+    unformatNumberInput(input) {
+        const value = input.getAttribute('data-value');
+        if (value) {
+            input.value = value;
+        }
+    }
+
+    formatCurrency(value) {
+        return new Intl.NumberFormat('en-US').format(value);
     }
 
     bindEvents() {
@@ -36,21 +70,21 @@ class CryptoAnalyzer {
         const max = parseFloat(input.max);
 
         if (input.value === '') {
-            input.style.borderColor = '#e1e5e9';
+            input.style.borderColor = 'var(--border-color)';
             return;
         }
 
         if (isNaN(value) || (min !== undefined && value < min) || (max !== undefined && value > max)) {
-            input.style.borderColor = '#ef4444';
+            input.style.borderColor = 'var(--error-color)';
         } else {
-            input.style.borderColor = '#10b981';
+            input.style.borderColor = 'var(--success-color)';
         }
     }
 
     getFilterParams() {
         return {
-            min_ath_market_cap: parseFloat(document.getElementById('minAthMarketCap').value),
-            min_current_market_cap: parseFloat(document.getElementById('minCurrentMarketCap').value),
+            min_ath_market_cap: parseInt(document.getElementById('minAthMarketCap').getAttribute('data-value') || document.getElementById('minAthMarketCap').value.replace(/,/g, '')),
+            min_current_market_cap: parseInt(document.getElementById('minCurrentMarketCap').getAttribute('data-value') || document.getElementById('minCurrentMarketCap').value.replace(/,/g, '')),
             min_drawdown: parseFloat(document.getElementById('minDrawdown').value),
             max_drawdown: parseFloat(document.getElementById('maxDrawdown').value),
             max_results: parseInt(document.getElementById('maxResults').value)
@@ -68,6 +102,10 @@ class CryptoAnalyzer {
 
         if (params.max_results < 1 || params.max_results > 200) {
             throw new Error('Количество результатов должно быть от 1 до 200');
+        }
+
+        if (params.min_drawdown < 0 || params.max_drawdown < 0) {
+            throw new Error('Просадка указывается в положительных значениях');
         }
 
         return true;
@@ -91,7 +129,7 @@ class CryptoAnalyzer {
         try {
             this.isAnalyzing = true;
             this.analyzeBtn.disabled = true;
-            this.analyzeBtn.innerHTML = '⏳ Анализ...';
+            this.analyzeBtn.innerHTML = '<span class="btn-icon">⏳</span><span>Анализ...</span>';
 
             this.hideError();
             this.hideResults();
@@ -114,6 +152,7 @@ class CryptoAnalyzer {
                 throw new Error(data.detail || 'Произошла ошибка при анализе');
             }
 
+            this.currentData = data.data;
             await this.displayResults(data);
 
         } catch (error) {
@@ -121,37 +160,53 @@ class CryptoAnalyzer {
         } finally {
             this.isAnalyzing = false;
             this.analyzeBtn.disabled = false;
-            this.analyzeBtn.innerHTML = '🔍 Анализировать';
+            this.analyzeBtn.innerHTML = '<span class="btn-icon">🔍</span><span>Анализировать криптовалюты</span>';
             this.hideLoading();
         }
     }
 
     async displayResults(data) {
-        this.resultsCountElement.textContent = `Найдено криптовалют: ${data.count}`;
-        this.resultsTableElement.innerHTML = this.generateTableHTML(data.data);
+        this.resultsCountElement.innerHTML = `
+            <span class="card-icon">🎯</span>
+            Найдено криптовалют: <span class="gradient-text">${data.count}</span>
+        `;
+
+        this.generateTable(data.data);
         this.showResults();
 
         // Добавляем анимацию для строк таблицы
         await this.animateTableRows();
+
+        // Плавная прокрутка к результатам
+        this.smoothScrollToResults();
     }
 
-    generateTableHTML(cryptos) {
+    generateTable(cryptos) {
         if (cryptos.length === 0) {
-            return '<div class="no-results">🎯 Криптовалюты, соответствующие условиям, не найдены. Попробуйте изменить параметры фильтрации.</div>';
+            this.resultsTableElement.innerHTML = `
+                <div class="no-results">
+                    <div style="font-size: 3rem; margin-bottom: 20px;">🎯</div>
+                    <h3>Криптовалюты не найдены</h3>
+                    <p>Попробуйте изменить параметры фильтрации для получения результатов</p>
+                </div>
+            `;
+            return;
         }
 
-        return `
+        const tableHTML = `
             <table class="crypto-table">
                 <thead>
                     <tr>
-                        <th>#</th>
-                        <th>Криптовалюта</th>
-                        <th>Цена ($)</th>
-                        <th>Текущая кап. ($)</th>
-                        <th>ATH кап. ($)</th>
-                        <th>Просадка</th>
-                        <th>24ч</th>
-                        <th>Ранг</th>
+                        <th data-sort="rank">#</th>
+                        <th data-sort="name">Криптовалюта</th>
+                        <th data-sort="ath_price" class="number-cell">Макс. цена ($)</th>
+                        <th data-sort="current_price" class="number-cell">Цена ($)</th>
+                        <th data-sort="price_deviation" class="number-cell">Отклонение от макс.</th>
+                        <th data-sort="current_market_cap" class="number-cell">Текущая кап. ($)</th>
+                        <th data-sort="estimated_ath_market_cap" class="number-cell">ATH кап. ($)</th>
+                        <th data-sort="drawdown_positive" class="number-cell">Просадка</th>
+                        <th data-sort="price_change_percentage_24h" class="number-cell">24ч</th>
+                        <th data-sort="rank" class="number-cell">Ранг</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -159,6 +214,11 @@ class CryptoAnalyzer {
                 </tbody>
             </table>
         `;
+
+        this.resultsTableElement.innerHTML = tableHTML;
+
+        // Добавляем обработчики сортировки
+        this.addSortListeners();
     }
 
     generateTableRow(crypto, index) {
@@ -185,51 +245,152 @@ class CryptoAnalyzer {
             return `${change > 0 ? '+' : ''}${change.toFixed(2)}%`;
         };
 
+        // Рассчитываем отклонение текущей цены от максимальной
+        const calculatePriceDeviation = (current, ath) => {
+            if (!ath || !current) return { value: 0, percentage: 0 };
+            const deviation = ath - current;
+            const percentage = (deviation / ath) * 100;
+            return { value: deviation, percentage: percentage };
+        };
+
+        const deviation = calculatePriceDeviation(crypto.current_price, crypto.ath_price);
+
+        // Генерируем ссылку на CoinMarketCap
+        const cmcUrl = `https://coinmarketcap.com/currencies/${crypto.id}/`;
+
         return `
             <tr class="table-row" style="opacity: 0; transform: translateX(-20px);">
-                <td>${index}</td>
+                <td class="number-cell">${index}</td>
                 <td>
-                    <div class="crypto-name">
+                    <a href="${cmcUrl}" target="_blank" class="crypto-link" title="Открыть на CoinMarketCap">
                         ${crypto.image ? `<img src="${crypto.image}" alt="${crypto.name}" class="crypto-icon" onerror="this.style.display='none'">` : ''}
                         <span>${crypto.name} (${crypto.symbol})</span>
-                    </div>
+                    </a>
                 </td>
-                <td><strong>${formatPrice(crypto.current_price)}</strong></td>
-                <td>${formatCurrency(crypto.current_market_cap)}</td>
-                <td><strong>${formatCurrency(crypto.estimated_ath_market_cap)}</strong></td>
-                <td class="negative"><strong>${crypto.drawdown_percent}%</strong></td>
-                <td class="${get24hChangeClass(crypto.price_change_percentage_24h)}">
+                <td class="number-cell"><strong>${formatPrice(crypto.ath_price)}</strong></td>
+                <td class="number-cell"><strong>${formatPrice(crypto.current_price)}</strong></td>
+                <td class="negative number-cell">
+                    <strong>${formatPrice(deviation.value)} (${deviation.percentage.toFixed(2)}%)</strong>
+                </td>
+                <td class="number-cell">${formatCurrency(crypto.current_market_cap)}</td>
+                <td class="number-cell"><strong>${formatCurrency(crypto.estimated_ath_market_cap)}</strong></td>
+                <td class="negative number-cell"><strong>${crypto.drawdown_percent}%</strong></td>
+                <td class="${get24hChangeClass(crypto.price_change_percentage_24h)} number-cell">
                     <strong>${format24hChange(crypto.price_change_percentage_24h)}</strong>
                 </td>
-                <td><span class="neutral">${crypto.rank}</span></td>
+                <td class="neutral number-cell">${crypto.rank}</td>
             </tr>
         `;
     }
 
+    addSortListeners() {
+        const headers = this.resultsTableElement.querySelectorAll('th[data-sort]');
+        headers.forEach(header => {
+            header.addEventListener('click', () => {
+                const sortKey = header.getAttribute('data-sort');
+                this.sortTable(sortKey, header);
+            });
+        });
+    }
+
+    sortTable(sortKey, header) {
+        if (this.currentData.length === 0) return;
+
+        // Сбрасываем сортировку для всех заголовков
+        const headers = this.resultsTableElement.querySelectorAll('th[data-sort]');
+        headers.forEach(h => {
+            h.classList.remove('sort-asc', 'sort-desc');
+        });
+
+        // Определяем направление сортировки
+        let sortDirection = 'asc';
+        if (this.sortState[sortKey] === 'asc') {
+            sortDirection = 'desc';
+        }
+
+        // Сортируем данные
+        const sortedData = [...this.currentData].sort((a, b) => {
+            let aValue = a[sortKey];
+            let bValue = b[sortKey];
+
+            // Для специального поля отклонения цены
+            if (sortKey === 'price_deviation') {
+                aValue = (a.ath_price - a.current_price) / a.ath_price * 100;
+                bValue = (b.ath_price - b.current_price) / b.ath_price * 100;
+            }
+
+            // Для строк - обычное сравнение
+            if (typeof aValue === 'string') {
+                aValue = aValue.toLowerCase();
+                bValue = bValue.toLowerCase();
+                return sortDirection === 'asc' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
+            }
+
+            // Для чисел - числовое сравнение
+            if (sortDirection === 'asc') {
+                return (aValue || 0) - (bValue || 0);
+            } else {
+                return (bValue || 0) - (aValue || 0);
+            }
+        });
+
+        // Обновляем состояние сортировки
+        this.sortState[sortKey] = sortDirection;
+        header.classList.add(`sort-${sortDirection}`);
+
+        // Перерисовываем таблицу с отсортированными данными
+        this.regenerateTable(sortedData);
+    }
+
+    regenerateTable(sortedData) {
+        const tbody = this.resultsTableElement.querySelector('tbody');
+        if (!tbody) return;
+
+        tbody.innerHTML = sortedData.map((crypto, index) => this.generateTableRow(crypto, index + 1)).join('');
+
+        // Анимируем новые строки
+        this.animateTableRows();
+    }
+
     async animateTableRows() {
-        const rows = document.querySelectorAll('.table-row');
+        const rows = this.resultsTableElement.querySelectorAll('.table-row');
         for (let i = 0; i < rows.length; i++) {
-            await new Promise(resolve => setTimeout(resolve, 50));
+            await new Promise(resolve => setTimeout(resolve, 30));
             rows[i].style.opacity = '1';
             rows[i].style.transform = 'translateX(0)';
-            rows[i].style.transition = 'all 0.4s ease';
+            rows[i].style.transition = 'all 0.3s ease';
+        }
+    }
+
+    smoothScrollToResults() {
+        if (this.resultsElement && !this.resultsElement.classList.contains('hidden')) {
+            this.resultsElement.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
+            });
         }
     }
 
     resetFilters() {
-        document.getElementById('minAthMarketCap').value = 500000;
-        document.getElementById('minCurrentMarketCap').value = 20000;
-        document.getElementById('minDrawdown').value = -90;
-        document.getElementById('maxDrawdown').value = -50;
-        document.getElementById('maxResults').value = 50;
+        document.getElementById('minAthMarketCap').value = '500,000';
+        document.getElementById('minAthMarketCap').setAttribute('data-value', '500000');
+
+        document.getElementById('minCurrentMarketCap').value = '20,000';
+        document.getElementById('minCurrentMarketCap').setAttribute('data-value', '20000');
+
+        document.getElementById('minDrawdown').value = '50';
+        document.getElementById('maxDrawdown').value = '90';
+        document.getElementById('maxResults').value = '50';
 
         // Сбрасываем стили валидации
         document.querySelectorAll('.filter-group input').forEach(input => {
-            input.style.borderColor = '#e1e5e9';
+            input.style.borderColor = 'var(--border-color)';
         });
 
         this.hideResults();
         this.hideError();
+        this.currentData = [];
+        this.sortState = {};
     }
 
     showLoading() {
@@ -265,17 +426,6 @@ class CryptoAnalyzer {
 // Инициализация при загрузке страницы
 document.addEventListener('DOMContentLoaded', () => {
     new CryptoAnalyzer();
-
-    // Добавляем плавную прокрутку к результатам
-    const smoothScrollToResults = () => {
-        const resultsElement = document.getElementById('results');
-        if (resultsElement && !resultsElement.classList.contains('hidden')) {
-            resultsElement.scrollIntoView({
-                behavior: 'smooth',
-                block: 'start'
-            });
-        }
-    };
 
     // Глобальная функция для обработки ошибок изображений
     window.handleImageError = function(img) {
