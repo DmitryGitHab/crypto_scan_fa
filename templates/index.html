@@ -7,119 +7,228 @@
     <link rel="stylesheet" href="/static/style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
 <body>
-    <div class="background-animation"></div>
+    <div class="particles-container" id="particles"></div>
+    <div class="background-gradients">
+        <div class="gradient-1"></div>
+        <div class="gradient-2"></div>
+        <div class="gradient-3"></div>
+    </div>
+
     <div class="container">
-        <header>
-            <div class="header-content">
-                <div class="logo">
-                    <div class="logo-icon">🚀</div>
-                    <h1>Crypto Analyzer Pro</h1>
+        <!-- Header -->
+        <header class="hero-section">
+            <div class="hero-content">
+                <div class="logo-container">
+                    <div class="logo-icon">
+                        <i class="fas fa-rocket"></i>
+                    </div>
+                    <h1 class="hero-title">
+                        <span class="title-gradient">Crypto</span>
+                        <span class="title-accent">Analyzer</span>
+                        <span class="title-pro">Pro</span>
+                    </h1>
                 </div>
-                <p class="tagline">Найдите криптовалюты с максимальным потенциалом роста</p>
+                <p class="hero-subtitle">Интеллектуальный поиск криптовалют с максимальным потенциалом роста</p>
+                <div class="hero-stats">
+                    <div class="stat-item">
+                        <div class="stat-value" id="totalCryptos">1250+</div>
+                        <div class="stat-label">Монет в анализе</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="filteredCryptos">0</div>
+                        <div class="stat-label">Найдено результатов</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="processingTime">0с</div>
+                        <div class="stat-label">Время анализа</div>
+                    </div>
+                </div>
             </div>
         </header>
 
-        <div class="filters-card glass-card">
-            <div class="card-header">
-                <div class="card-icon">⚙️</div>
-                <h2>Параметры фильтрации</h2>
+        <!-- Progress Bar -->
+        <div id="progressBar" class="progress-bar hidden">
+            <div class="progress-track">
+                <div class="progress-fill" id="progressFill"></div>
             </div>
+            <div class="progress-text" id="progressText">Анализ данных...</div>
+        </div>
 
-            <div class="filters-grid">
-                <div class="filter-group">
-                    <label for="minAthMarketCap">
-                        <span class="label-text">Минимальная ATH капитализация</span>
-                        <span class="label-hint">(исторический максимум)</span>
-                    </label>
-                    <input type="text" id="minAthMarketCap" value="500,000" data-value="500000">
+        <!-- Filters Section -->
+        <section class="filters-section">
+            <div class="section-card">
+                <div class="card-header">
+                    <div class="card-icon">
+                        <i class="fas fa-sliders-h"></i>
+                    </div>
+                    <div class="card-title">
+                        <h2>Параметры поиска</h2>
+                        <p>Настройте критерии для поиска перспективных криптовалют</p>
+                    </div>
                 </div>
 
-                <div class="filter-group">
-                    <label for="minCurrentMarketCap">
-                        <span class="label-text">Минимальная текущая капитализация</span>
-                    </label>
-                    <input type="text" id="minCurrentMarketCap" value="20,000" data-value="20000">
+                <div class="filters-grid">
+                    <div class="filter-card">
+                        <div class="filter-header">
+                            <i class="fas fa-chart-line"></i>
+                            <h3>Капитализация</h3>
+                        </div>
+                        <div class="filter-group">
+                            <label for="minAthMarketCap">
+                                <span class="label-main">ATH Капитализация</span>
+                                <span class="label-desc">Минимальная историческая капитализация</span>
+                            </label>
+                            <div class="input-with-suffix">
+                                <input type="text" id="minAthMarketCap" value="500 000" data-value="500000">
+                                <span class="input-suffix">$</span>
+                            </div>
+                        </div>
+                        <div class="filter-group">
+                            <label for="minCurrentMarketCap">
+                                <span class="label-main">Текущая капитализация</span>
+                                <span class="label-desc">Минимальная текущая капитализация</span>
+                            </label>
+                            <div class="input-with-suffix">
+                                <input type="text" id="minCurrentMarketCap" value="20 000" data-value="20000">
+                                <span class="input-suffix">$</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="filter-card">
+                        <div class="filter-header">
+                            <i class="fas fa-arrow-down"></i>
+                            <h3>Просадка от ATH</h3>
+                        </div>
+                        <div class="filter-group">
+                            <label for="minDrawdown">
+                                <span class="label-main">Минимальная просадка</span>
+                                <span class="label-desc">От текущей цены до исторического максимума</span>
+                            </label>
+                            <div class="input-with-suffix">
+                                <input type="number" id="minDrawdown" value="50" min="0" max="100" step="1">
+                                <span class="input-suffix">%</span>
+                            </div>
+                        </div>
+                        <div class="filter-group">
+                            <label for="maxDrawdown">
+                                <span class="label-main">Максимальная просадка</span>
+                                <span class="label-desc">От текущей цены до исторического максимума</span>
+                            </label>
+                            <div class="input-with-suffix">
+                                <input type="number" id="maxDrawdown" value="90" min="0" max="100" step="1">
+                                <span class="input-suffix">%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="filter-card">
+                        <div class="filter-header">
+                            <i class="fas fa-filter"></i>
+                            <h3>Настройки вывода</h3>
+                        </div>
+                        <div class="filter-group">
+                            <label for="maxResults">
+                                <span class="label-main">Лимит результатов</span>
+                                <span class="label-desc">Максимальное количество отображаемых записей</span>
+                            </label>
+                            <input type="number" id="maxResults" value="50" min="1" max="200" step="1">
+                        </div>
+                        <div class="filter-info">
+                            <i class="fas fa-info-circle"></i>
+                            <span>Просадка указывается в положительных значениях</span>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="filter-group">
-                    <label for="minDrawdown">
-                        <span class="label-text">Минимальная просадка от ATH</span>
-                        <span class="label-hint">(в процентах)</span>
-                    </label>
-                    <input type="number" id="minDrawdown" value="50" min="0" max="100" step="1">
-                </div>
-
-                <div class="filter-group">
-                    <label for="maxDrawdown">
-                        <span class="label-text">Максимальная просадка от ATH</span>
-                        <span class="label-hint">(в процентах)</span>
-                    </label>
-                    <input type="number" id="maxDrawdown" value="90" min="0" max="100" step="1">
-                </div>
-
-                <div class="filter-group">
-                    <label for="maxResults">
-                        <span class="label-text">Максимум результатов</span>
-                    </label>
-                    <input type="number" id="maxResults" value="50" min="1" max="200" step="1">
+                <div class="actions-container">
+                    <button id="analyzeBtn" class="btn btn-primary btn-lg">
+                        <span class="btn-icon">
+                            <i class="fas fa-search"></i>
+                        </span>
+                        <span class="btn-text">Запустить анализ</span>
+                        <span class="btn-loader hidden">
+                            <i class="fas fa-spinner fa-spin"></i>
+                        </span>
+                    </button>
+                    <button id="resetBtn" class="btn btn-secondary">
+                        <span class="btn-icon">
+                            <i class="fas fa-redo"></i>
+                        </span>
+                        <span class="btn-text">Сбросить</span>
+                    </button>
                 </div>
             </div>
+        </section>
 
-            <div class="filters-info">
-                <div class="info-item">
-                    <span class="info-icon">💡</span>
-                    <span>Просадка указывается в положительных значениях (50% вместо -50%)</span>
+        <!-- Results Section -->
+        <section id="resultsSection" class="results-section hidden">
+            <div class="section-card">
+                <div class="card-header">
+                    <div class="card-icon">
+                        <i class="fas fa-chart-bar"></i>
+                    </div>
+                    <div class="card-title">
+                        <h2>Результаты анализа</h2>
+                        <p>Найденные криптовалюты, соответствующие вашим критериям</p>
+                    </div>
+                </div>
+
+                <div id="resultsStats" class="results-stats">
+                    <div class="stats-grid">
+                        <div class="stat-card success">
+                            <i class="fas fa-coins"></i>
+                            <div class="stat-content">
+                                <div class="stat-number" id="resultsCount">0</div>
+                                <div class="stat-label">Найдено монет</div>
+                            </div>
+                        </div>
+                        <div class="stat-card info">
+                            <i class="fas fa-clock"></i>
+                            <div class="stat-content">
+                                <div class="stat-number" id="resultsTime">0с</div>
+                                <div class="stat-label">Время обработки</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="resultsContainer" class="results-container">
+                    <!-- Results will be populated here -->
                 </div>
             </div>
+        </section>
 
-            <div class="actions">
-                <button id="analyzeBtn" class="btn-primary">
-                    <span class="btn-icon">🔍</span>
-                    <span>Анализировать криптовалюты</span>
+        <!-- Error Section -->
+        <section id="errorSection" class="error-section hidden">
+            <div class="section-card error-card">
+                <div class="card-header">
+                    <div class="card-icon">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <h2>Произошла ошибка</h2>
+                </div>
+                <p id="errorMessage" class="error-message"></p>
+                <button id="retryBtn" class="btn btn-secondary">
+                    <i class="fas fa-redo"></i>
+                    Попробовать снова
                 </button>
-                <button id="resetBtn" class="btn-secondary">
-                    <span class="btn-icon">🔄</span>
-                    <span>Сбросить настройки</span>
-                </button>
             </div>
-        </div>
-
-        <div id="loading" class="loading glass-card hidden">
-            <div class="loading-content">
-                <div class="pulse-spinner"></div>
-                <h3>Анализируем крипторынок</h3>
-                <p>Получаем актуальные данные и применяем фильтры...</p>
-            </div>
-        </div>
-
-        <div id="results" class="results-card glass-card hidden">
-            <div class="card-header">
-                <div class="card-icon">📊</div>
-                <h2>Результаты анализа</h2>
-            </div>
-            <div id="resultsCount" class="results-count"></div>
-            <div id="resultsTable" class="table-container">
-                <!-- Таблица будет сгенерирована через JavaScript -->
-            </div>
-        </div>
-
-        <div id="error" class="error-card glass-card hidden">
-            <div class="card-header">
-                <div class="card-icon">❌</div>
-                <h2>Ошибка</h2>
-            </div>
-            <p id="errorMessage"></p>
-        </div>
+        </section>
     </div>
 
-    <footer class="footer">
-        <div class="footer-content">
-            <p>© 2025 Crypto Analyzer Pro | Анализ криптовалютного рынка в реальном времени</p>
-        </div>
-    </footer>
+    <!-- Floating Elements -->
+    <div class="floating-elements">
+        <div class="floating-element el-1"><i class="fas fa-bitcoin"></i></div>
+        <div class="floating-element el-2"><i class="fas fa-chart-line"></i></div>
+        <div class="floating-element el-3"><i class="fas fa-rocket"></i></div>
+        <div class="floating-element el-4"><i class="fas fa-coins"></i></div>
+        <div class="floating-element el-5"><i class="fas fa-search"></i></div>
+    </div>
 
     <script src="/static/script.js"></script>
 </body>
