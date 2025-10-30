@@ -9,9 +9,9 @@ import json
 from datetime import datetime
 import os
 import time
+import random
 from typing import Optional, List
 from pydantic import BaseModel
-import math
 
 
 class FilterParams(BaseModel):
@@ -24,7 +24,6 @@ class FilterParams(BaseModel):
 
 app = FastAPI(title="Crypto Analyzer Pro", version="3.0.0")
 
-# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -33,7 +32,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Монтируем статические файлы
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
@@ -43,13 +41,18 @@ class CryptoAnalyzer:
         self.base_url = "https://api.coingecko.com/api/v3"
         self.request_count = 0
         self.start_time = time.time()
+        self.last_request_time = 0
 
     async def fetch_data(self, session, url):
-        """Асинхронный запрос к API с обработкой rate limits"""
-        elapsed_time = time.time() - self.start_time
-        if self.request_count >= 45 and elapsed_time < 60:
-            wait_time = 60 - elapsed_time + 1
-            print(f"Достигнут лимит запросов. Ожидание {wait_time:.1f} секунд...")
+        current_time = time.time()
+
+        if current_time - self.last_request_time < 2:
+            await asyncio.sleep(2 - (current_time - self.last_request_time))
+
+        elapsed_time = current_time - self.start_time
+        if self.request_count >= 40 and elapsed_time < 60:
+            wait_time = 60 - elapsed_time + random.uniform(1, 3)
+            print(f"🔒 Rate limit protection: waiting {wait_time:.1f} seconds...")
             await asyncio.sleep(wait_time)
             self.request_count = 0
             self.start_time = time.time()
@@ -57,58 +60,53 @@ class CryptoAnalyzer:
         try:
             async with session.get(url, timeout=aiohttp.ClientTimeout(total=30)) as response:
                 self.request_count += 1
+                self.last_request_time = time.time()
 
                 if response.status == 200:
                     return await response.json()
                 elif response.status == 429:
-                    print("Превышен лимит запросов. Ожидание 60 секунд...")
-                    await asyncio.sleep(60)
+                    wait_time = 60 + random.uniform(5, 15)
+                    print(f"⏳ Rate limit exceeded. Waiting {wait_time:.1f} seconds...")
+                    await asyncio.sleep(wait_time)
                     return await self.fetch_data(session, url)
                 else:
-                    print(f"Ошибка API: {response.status} для {url}")
+                    print(f"❌ API Error {response.status} for {url}")
                     return None
         except asyncio.TimeoutError:
-            print(f"Таймаут запроса: {url}")
+            print(f"⏰ Timeout for {url}")
             return None
         except Exception as e:
-            print(f"Ошибка при запросе {url}: {e}")
+            print(f"🚨 Request error {url}: {e}")
             return None
 
     def calculate_deviation(self, current_price, ath_price):
-        """Расчет отклонения текущей цены от максимальной"""
         if ath_price == 0 or current_price is None or ath_price is None:
             return 0
         return ((current_price - ath_price) / ath_price) * 100
 
     async def get_all_cryptos(self, session):
-        """Получение всех криптовалют с пагинацией"""
         all_cryptos = []
 
-        # Получаем данные с нескольких страниц для большего охвата
-        for page in range(1, 6):  # 5 страниц по 250 = 1250 криптовалют
+        for page in range(1, 6):
             url = f"{self.base_url}/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page={page}&sparkline=false"
-            print(f"Загружаем страницу {page}...")
+            print(f"📄 Fetching page {page}...")
 
             data = await self.fetch_data(session, url)
             if data:
                 all_cryptos.extend(data)
+            else:
+                break
 
-            # Задержка между запросами для избежания rate limits
-            if page < 5:
-                await asyncio.sleep(1)
+            await asyncio.sleep(1)
 
-        # Убираем дубликаты по id
-        seen_ids = set()
-        unique_cryptos = []
+        unique_cryptos = {}
         for crypto in all_cryptos:
-            if crypto['id'] not in seen_ids:
-                seen_ids.add(crypto['id'])
-                unique_cryptos.append(crypto)
+            if crypto['id'] not in unique_cryptos:
+                unique_cryptos[crypto['id']] = crypto
 
-        return unique_cryptos
+        return list(unique_cryptos.values())
 
     def filter_cryptocurrencies(self, crypto_data, filter_params: FilterParams):
-        """Фильтрация криптовалют по заданным условиям"""
         filtered = []
 
         for crypto in crypto_data:
@@ -120,30 +118,24 @@ class CryptoAnalyzer:
                 current_market_cap = crypto.get('market_cap', 0)
                 ath_price = crypto.get('ath', 0)
 
-                # Пропускаем криптовалюты с нулевой или отсутствующей ценой
-                if not current_price or not ath_price or current_price <= 0 or ath_price <= 0:
-                    continue
-
-                # Получаем процент изменения от ATH
                 ath_change_percentage = crypto.get('ath_change_percentage')
                 if ath_change_percentage is not None:
                     drawdown_percentage = ath_change_percentage
                 else:
                     drawdown_percentage = self.calculate_deviation(current_price, ath_price)
 
-                # Оцениваем ATH капитализацию
-                estimated_ath_market_cap = (ath_price / current_price) * current_market_cap
+                if ath_price > 0 and current_price > 0:
+                    estimated_ath_market_cap = (ath_price / current_price) * current_market_cap
+                else:
+                    estimated_ath_market_cap = 0
 
-                # Преобразуем просадку в положительное число для сравнения
                 drawdown_positive = abs(drawdown_percentage)
 
-                # Расчет отклонения цены
-                price_deviation = self.calculate_deviation(current_price, ath_price)
-
-                # Проверяем условия
                 conditions_met = (
                         estimated_ath_market_cap >= filter_params.min_ath_market_cap and
                         current_market_cap >= filter_params.min_current_market_cap and
+                        ath_price > 0 and
+                        current_price > 0 and
                         filter_params.min_drawdown <= drawdown_positive <= filter_params.max_drawdown
                 )
 
@@ -158,13 +150,12 @@ class CryptoAnalyzer:
                         'estimated_ath_market_cap': estimated_ath_market_cap,
                         'drawdown_percent': round(drawdown_percentage, 2),
                         'drawdown_positive': round(drawdown_positive, 2),
-                        'price_deviation': round(price_deviation, 2),
+                        'deviation_percent': round(self.calculate_deviation(current_price, ath_price), 2),
                         'rank': crypto.get('market_cap_rank', 'N/A'),
                         'id': crypto.get('id', ''),
                         'price_change_24h': crypto.get('price_change_24h', 0),
                         'price_change_percentage_24h': crypto.get('price_change_percentage_24h', 0),
-                        'image': crypto.get('image', ''),
-                        'last_updated': crypto.get('last_updated', '')
+                        'image': crypto.get('image', '')
                     }
                     filtered.append(crypto_info)
 
@@ -174,20 +165,22 @@ class CryptoAnalyzer:
         return filtered[:filter_params.max_results]
 
     async def analyze_cryptocurrencies(self, filter_params: FilterParams):
-        """Основная функция анализа криптовалют"""
         async with aiohttp.ClientSession() as session:
-            print("🔄 Получаем расширенный список криптовалют...")
+            print("🚀 Starting crypto analysis...")
+            start_time = time.time()
+
             cryptocurrencies = await self.get_all_cryptos(session)
 
             if not cryptocurrencies:
                 return []
 
-            print(f"✅ Получено {len(cryptocurrencies)} уникальных криптовалют")
+            print(f"✅ Received {len(cryptocurrencies)} unique cryptocurrencies")
 
-            # Фильтруем по условиям
             filtered_cryptos = self.filter_cryptocurrencies(cryptocurrencies, filter_params)
 
-            print(f"🎯 Найдено {len(filtered_cryptos)} криптовалют, соответствующих критериям")
+            analysis_time = time.time() - start_time
+            print(f"⏱️ Analysis completed in {analysis_time:.2f} seconds. Found {len(filtered_cryptos)} results")
+
             return filtered_cryptos
 
 
@@ -196,13 +189,11 @@ analyzer = CryptoAnalyzer()
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
-    """Главная страница"""
     return templates.TemplateResponse("index.html", {"request": request})
 
 
 @app.post("/api/analyze")
 async def analyze_cryptos(params: FilterParams):
-    """API endpoint для анализа криптовалют"""
     try:
         start_time = time.time()
         results = await analyzer.analyze_cryptocurrencies(params)
@@ -221,7 +212,6 @@ async def analyze_cryptos(params: FilterParams):
 
 @app.get("/api/status")
 async def get_status():
-    """Проверка статуса API"""
     return {
         "status": "online",
         "timestamp": datetime.now().isoformat(),
@@ -233,4 +223,4 @@ async def get_status():
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
+    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
